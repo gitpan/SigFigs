@@ -17,7 +17,7 @@ Take a look at the value of @INC in a perl script (run the debugger and
 print @INC).  In any of the directories that it lists, create a directory
 named Math.  Copy SigFigs.pm to this directory.
 
-In our installation, I have installed MathSigFigs as:
+In our installation, I have installed Math::SigFigs as:
         /usr/local/lib/perl5/site_perl/Math/SigFigs.pm
 
 Make sure that in your perl script you have the line:

@@ -9,7 +9,7 @@ package Math::SigFigs;
 ########################################################################
 
 # Written by:
-#    Sullivan Beck (sbeck@cise.ufl.edu)
+#    Sullivan Beck (sbeck@cpan.org)
 # Any suggestions, bug reports, or donations :-) should be sent to me.
 
 # Version 1.00  12/05/96
@@ -20,6 +20,10 @@ package Math::SigFigs;
 #    "101" is now returned as "101." .
 #    Fixed where 9.99 wasn't being correctly returned with 1 sigfig.
 #       Kyle Krom <kromk@pt.Cyanamid.COM>
+#
+# Version 1.02
+#    Fixed where 1249.01 wasn't correctly rounded to 1200.
+#       Janna Wemekamp <jwemekam@erin.gov.au>
 
 ########################################################################
 
@@ -156,8 +160,13 @@ sub FormatSigFigs {
       }
       return "$s$ret";
     } else {
-      $N=~s/\.5/\.6/;
-      $N=sprintf("%.0f",$N);              # turn it into 123 and continue
+      my($a)=substr($N,0,$n);             # Turn 1234.56 into 123.456 (n=3)
+      $N =~ /^$a(.*)\.(.*)$/;
+      my($b,$c)=($1,$2);
+      $N="$a.$b$c";
+      $N=sprintf("%.0f",$N);              # Turn it to 123
+      $N .= "0" x length($b);             # Turn it to 1230
+      return $N;
     }
 
   } elsif ($N=~ /^0\.(0*)(\d*)$/) {       # 0.0123
@@ -361,6 +370,10 @@ the proper number of significant figures.
 
 =head1 KNOWN PROBLEMS
 
+=over 4
+
+=item Without scientific notation, some numbers are ambiguous
+
 These routines do not work with scientific notation (exponents).  As a
 result, it is impossible to unambiguously format some numbers.  For
 example,
@@ -372,8 +385,23 @@ significant figures.  This is not a bug.  It is simply a fundamental
 problem with working with significant figures when not using scientific
 notation.
 
+=item A bug in some printf library calls on the Mac
+
+One of the tests
+
+   FormatSigFigs(0.99,1)  =>  1.
+
+fails on at least some Mac OS versions.  It gives "0." instead of "1."
+and comes when the call:
+
+   printf("%.0f","0.99")
+
+returns 0 instead of 1.  I have not added a workaround for this.
+
+=back
+
 =head1 AUTHOR
 
-Sullivan Beck (sbeck@cise.ufl.edu)
+Sullivan Beck (sbeck@cpan.org)
 
 =cut

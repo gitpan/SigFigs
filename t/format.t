@@ -11,7 +11,7 @@ if ( -f "t/test.pl" ) {
 }
 
 print "FormatSigFigs...\n";
-print "1..142\n"  if (! $runtests);
+print "1..143\n"  if (! $runtests);
 
 
 $tests="
@@ -629,6 +629,10 @@ $tests="
 1249.65557000003
 2
 1200
+
+-1930.5
+3
+-1930
 
 ";
 

@@ -1,6 +1,6 @@
 package Math::SigFigs;
 
-# Copyright (c) 1995-1999 Sullivan Beck. All rights reserved.
+# Copyright (c) 1995-2003 Sullivan Beck. All rights reserved.
 # This program is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 
@@ -12,18 +12,24 @@ package Math::SigFigs;
 #    Sullivan Beck (sbeck@cpan.org)
 # Any suggestions, bug reports, or donations :-) should be sent to me.
 
-# Version 1.00  12/05/96
+# Version 1.00  12/05/1996
 #    Initial creation
 #
-# Version 1.01  01/28/97
+# Version 1.01  01/28/1997
 #    Used croak and changed die's to confess.
 #    "101" is now returned as "101." .
 #    Fixed where 9.99 wasn't being correctly returned with 1 sigfig.
 #       Kyle Krom <kromk@pt.Cyanamid.COM>
 #
-# Version 1.02
+# Version 1.02  01/10/2000
 #    Fixed where 1249.01 wasn't correctly rounded to 1200.
 #       Janna Wemekamp <jwemekam@erin.gov.au>
+#
+# Version 1.03  09/11/2003
+#    Fixed a bug where I left off the sign.  Steve Reaser
+#       <steve_reaser@webassign.net>
+#    Fixed a bug in subSF where numbers ending in zero were truncated.
+#       Andrew Grall <AGrall@dcds.edu>
 
 ########################################################################
 
@@ -34,14 +40,16 @@ use Carp;
 @EXPORT = qw(FormatSigFigs
              CountSigFigs
 );
-@EXPORT_OK = qw(FormatSigFigs CountSigFigs addSF subSF multSF divSF);
+@EXPORT_OK = qw(FormatSigFigs CountSigFigs addSF subSF multSF divSF VERSION);
 %EXPORT_TAGS = (all => \@EXPORT_OK);
+
+$VERSION = 1.03;
 
 use strict;
 
 sub addSF {
   my($n1,$n2)=@_;
-  return ()  if (! &IsReal($n1)  or  ! &IsReal($n2));
+  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
   return $n2 if ($n1==0);
   return $n1 if ($n2==0);
   my($m1,$m2,$m,$n)=();
@@ -64,7 +72,7 @@ sub addSF {
   if ($n=~ /[+-]?(.*)\.(.*)/) {           # 123.456
     ($m1,$m2)=(length($1),length($2));
     if ($m<0) {                           # 120
-      $n=&FormatSigFigs($n,$m1+$m);
+      $n=FormatSigFigs($n,$m1+$m);
     } elsif ($m>=0) {                     # 123. 123.5
       $n=sprintf("%.$m"."f",$n);
       $n .= "."  if ($m==0);
@@ -72,7 +80,7 @@ sub addSF {
 
   } else {                                # 12340
     if ($m<0) {                           # 12300
-      $n=&FormatSigFigs($n,length($n)+$m);
+      $n=FormatSigFigs($n,length($n)+$m);
     } elsif ($m>=0) {                     # 12340. 12340.0
       $n .= "." . "0"x$m;
     }
@@ -82,36 +90,41 @@ sub addSF {
 
 sub subSF {
   my($n1,$n2)=@_;
-  &addSF($n1,-$n2);
+  if ($n2<0) {
+    $n2 =~ s/\-//;
+  } else {
+    $n2 =~ s/^\+?/-/;
+  }
+  addSF($n1,$n2);
 }
 
 sub multSF {
   my($n1,$n2)=@_;
-  return ()  if (! &IsReal($n1)  or  ! &IsReal($n2));
+  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
   return 0   if ($n1==0  or  $n2==0);
-  my($m1)=&CountSigFigs($n1);
-  my($m2)=&CountSigFigs($n2);
+  my($m1)=CountSigFigs($n1);
+  my($m2)=CountSigFigs($n2);
   my($m)=($m1<$m2 ? $m1 : $m2);
   my($n)=$n1*$n2;
-  &FormatSigFigs($n,$m);
+  FormatSigFigs($n,$m);
 }
 
 sub divSF {
   my($n1,$n2)=@_;
-  return ()  if (! &IsReal($n1)  or  ! &IsReal($n2));
+  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
   return 0   if ($n1==0);
   return ()  if ($n2==0);
-  my($m1)=&CountSigFigs($n1);
-  my($m2)=&CountSigFigs($n2);
+  my($m1)=CountSigFigs($n1);
+  my($m2)=CountSigFigs($n2);
   my($m)=($m1<$m2 ? $m1 : $m2);
   my($n)=$n1/$n2;
-  &FormatSigFigs($n,$m);
+  FormatSigFigs($n,$m);
 }
 
 sub FormatSigFigs {
   my($N,$n)=@_;
   my($ret);
-  return ""  if (! &IsReal($N)  or  ! &IsInt($n)  or  $n<1);
+  return ""  if (! IsReal($N)  or  ! IsInt($n)  or  $n<1);
   my($l,$l1,$l2,$m,$s)=();
   $N=~ s/\s+//g;               # Remove all spaces
   $N=~ s/^([+-]?)//;           # Remove sign
@@ -122,7 +135,7 @@ sub FormatSigFigs {
   $N= "0$N"  if ($N=~ /^\./);  # Turn .2 into 0.2
 
   # If $N has fewer sigfigs than requested, pad it with zeros and return it.
-  $m=&CountSigFigs($N);
+  $m=CountSigFigs($N);
   if ($m==$n) {
     $N="$N."  if (length($N)==$n);
     return "$s$N";
@@ -143,7 +156,7 @@ sub FormatSigFigs {
       $l=$n-$l1;
       ($l2>$l) && ($N=~ s/5$/6/);         # 4.95 rounds down... make it go up
       $ret=sprintf("%.${l}f",$N);
-      $m=&CountSigFigs($ret);
+      $m=CountSigFigs($ret);
       if ($m==$n) {
         $ret="$ret."  if ($l==0 && $m==length($ret));
         return "$s$ret";
@@ -166,7 +179,7 @@ sub FormatSigFigs {
       $N="$a.$b$c";
       $N=sprintf("%.0f",$N);              # Turn it to 123
       $N .= "0" x length($b);             # Turn it to 1230
-      return $N;
+      return "$s$N";
     }
 
   } elsif ($N=~ /^0\.(0*)(\d*)$/) {       # 0.0123
@@ -174,7 +187,7 @@ sub FormatSigFigs {
     ($l2>$n) && ($N=~ s/5$/6/);
     $l=$l1+$n;
     $ret=sprintf("%.${l}f",$N);
-    $m=&CountSigFigs($ret);
+    $m=CountSigFigs($ret);
     return "$s$ret"  if ($n==$m);
 
     # special cases 0.099 (1) -> 0.1
@@ -182,7 +195,7 @@ sub FormatSigFigs {
 
     $l--;
     $ret=sprintf("%.${l}f",$N);
-    $m=&CountSigFigs($ret);
+    $m=CountSigFigs($ret);
     $ret="$ret."  if ($l==0);
     return "$s$ret"  if ($n==$m);
     $ret =~ s/0$//;
@@ -213,7 +226,7 @@ sub FormatSigFigs {
 
 sub CountSigFigs {
   my($N)=@_;
-  return ()  if (! &IsReal($N));
+  return ()  if (! IsReal($N));
   return 0   if ($N==0);
 
   my($tmp)=();
@@ -291,15 +304,15 @@ form.  If you are going to be doing arithmetic, use the second line.
 
 The following routines do simple counting/formatting:
 
-  $n=&CountSigFigs($num);
-  $num=&FormatSigFigs($num,$n);
+  $n=CountSigFigs($num);
+  $num=FormatSigFigs($num,$n);
 
 Use the following routines to do arithmetic operations.
 
-  $num=&addSF($n1,$n2);
-  $num=&subSF($n1,$n2);
-  $num=&multSF($n1,$n2);
-  $num=&divSF($n1,$n2);
+  $num=addSF($n1,$n2);
+  $num=subSF($n1,$n2);
+  $num=multSF($n1,$n2);
+  $num=divSF($n1,$n2);
 
 =head1 DESCRIPTION
 
@@ -320,7 +333,7 @@ given number of significant figures, and do basic arithmetic.
 
 =item CountSigFigs
 
-  $n=&CountSigFigs($N);
+  $n=CountSigFigs($N);
 
 This returns the number of significant figures in a number.  It returns
 () if $N is not a number.
@@ -337,7 +350,7 @@ This returns the number of significant figures in a number.  It returns
 
 =item FormatSigFigs
 
-  $str=&FormatSigFigs($N,$n)
+  $str=FormatSigFigs($N,$n)
 
 This returns a string containing $N formatted to $n significant figures.
 This will work for all cases except something like "2400" formatted to
@@ -378,7 +391,7 @@ These routines do not work with scientific notation (exponents).  As a
 result, it is impossible to unambiguously format some numbers.  For
 example,
 
-  $str=&FormatSigFigs("2400",3);
+  $str=FormatSigFigs("2400",3);
 
 will by necessity return the string "2400" which does NOT have 3
 significant figures.  This is not a bug.  It is simply a fundamental

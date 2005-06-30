@@ -27,11 +27,9 @@ $tests="
 -11.1
 123.4
 
-# sprintf rounds the following wrong IMO (123.45 produced instead of 123.46)
 112.345
 -11.11
-123.45
-
+123.46
 
 112.345
 10
@@ -47,7 +45,7 @@ $tests="
 
 112.345
 11.11
-101.23
+101.24
 
 +3.20
 +3.89

@@ -1,6 +1,6 @@
 package Math::SigFigs;
 
-# Copyright (c) 1995-2003 Sullivan Beck. All rights reserved.
+# Copyright (c) 1995-2005 Sullivan Beck. All rights reserved.
 # This program is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 
@@ -12,24 +12,30 @@ package Math::SigFigs;
 #    Sullivan Beck (sbeck@cpan.org)
 # Any suggestions, bug reports, or donations :-) should be sent to me.
 
-# Version 1.00  12/05/1996
+# Version 1.00  1996-12-05
 #    Initial creation
 #
-# Version 1.01  01/28/1997
+# Version 1.01  1997-01-28
 #    Used croak and changed die's to confess.
 #    "101" is now returned as "101." .
 #    Fixed where 9.99 wasn't being correctly returned with 1 sigfig.
 #       Kyle Krom <kromk@pt.Cyanamid.COM>
 #
-# Version 1.02  01/10/2000
+# Version 1.02  2000-01-10
 #    Fixed where 1249.01 wasn't correctly rounded to 1200.
 #       Janna Wemekamp <jwemekam@erin.gov.au>
 #
-# Version 1.03  09/11/2003
+# Version 1.03  2003-09-11
 #    Fixed a bug where I left off the sign.  Steve Reaser
 #       <steve_reaser@webassign.net>
 #    Fixed a bug in subSF where numbers ending in zero were truncated.
 #       Andrew Grall <AGrall@dcds.edu>
+#
+# Version 1.04  2005-06-30
+#    Complete rewrite of addSF.
+#      - stopped using sprintf (which does not return the same results on
+#        all platforms.
+#      - replaced IsReal with Simplify.
 
 ########################################################################
 
@@ -40,52 +46,73 @@ use Carp;
 @EXPORT = qw(FormatSigFigs
              CountSigFigs
 );
-@EXPORT_OK = qw(FormatSigFigs CountSigFigs addSF subSF multSF divSF VERSION);
-%EXPORT_TAGS = (all => \@EXPORT_OK);
+@EXPORT_STD   = qw(FormatSigFigs CountSigFigs addSF subSF multSF divSF
+                   VERSION);
+@EXPORT_DEBUG = qw(LSP Simplify);
+@EXPORT_OK = (@EXPORT_STD, @EXPORT_DEBUG);
 
-$VERSION = 1.03;
+%EXPORT_TAGS = (all => \@EXPORT_STD, debug => \@EXPORT_DEBUG);
+
+$VERSION = 1.04;
 
 use strict;
 
 sub addSF {
   my($n1,$n2)=@_;
-  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
+  $n1 = Simplify($n1);
+  $n2 = Simplify($n2);
+  return ()  if (! defined $n1  ||  ! defined $n2);
   return $n2 if ($n1==0);
   return $n1 if ($n2==0);
-  my($m1,$m2,$m,$n)=();
-  if ($n1 =~ /\.(.*)$/) {
-    $m1=length($1);
-  } else {
-    $n1 =~ /(0*)$/;
-    $m1=-length($1);
-  }
-  if ($n2 =~ /\.(.*)$/) {
-    $m2=length($1);
-  } else {
-    $n2 =~ /(0*)$/;
-    $m2=-length($1);
-  }
-  $m=($m1<$m2 ? $m1 : $m2);
-  $n=$n1+$n2;
-  return 0  if ($n==0);
 
-  if ($n=~ /[+-]?(.*)\.(.*)/) {           # 123.456
-    ($m1,$m2)=(length($1),length($2));
-    if ($m<0) {                           # 120
-      $n=FormatSigFigs($n,$m1+$m);
-    } elsif ($m>=0) {                     # 123. 123.5
-      $n=sprintf("%.$m"."f",$n);
-      $n .= "."  if ($m==0);
+  my $m1 = LSP($n1);
+  my $m2 = LSP($n2);
+  my $m  = ($m1>$m2 ? $m1 : $m2);
+
+  my($n) = $n1+$n2;
+  my($s) = ($n<0 ? "-" : "");
+  $n     = -1*$n  if ($n<0);          # n = 1234.44           5678.99
+  $n =~ /^(\d*)/;
+  my $i = ($1);                       # i = 1234              5678
+  my $l = length($i);                 # l = 4
+
+  if ($m>0) {                         # m = 5,4,3,2,1
+    if ($l >= $m+1) {                 # m = 3,2,1; l-m = 1,2,3
+      $n = FormatSigFigs($n,$l-$m);   # n = 1000,1200,1230    6000,5700,5680
+    } elsif ($l == $m) {              # m = 4
+      if ($i =~ /^[5-9]/) {
+        $n = 1 . "0"x$m;              # n =                   10000
+      } else {
+        return 0;                     # n = 0
+      }
+    } else {                          # m = 5
+      return 0;
     }
 
-  } else {                                # 12340
-    if ($m<0) {                           # 12300
-      $n=FormatSigFigs($n,length($n)+$m);
-    } elsif ($m>=0) {                     # 12340. 12340.0
-      $n .= "." . "0"x$m;
+  } elsif ($i>0) {                    # n = 1234.44           5678.99
+    $n = FormatSigFigs($n,$l-$m);     # m = 0,-1,-2,...
+
+  } else {                            # n = 0.1234    0.00123   0.00567
+    $n =~ /\.(0*)(\d+)/;
+    my ($z,$d) = ($1,$2);
+    $m = -$m;
+
+    if ($m > length($z)) {            # m = -1,-2,..  -3,-4,..  -3,-4,..
+      $n = FormatSigFigs($n,$m-length($z));
+
+    } elsif ($m == length($z)) {      # m =           -2        -2
+      if ($d =~ /^[5-9]/) {
+        $n = "0." . "0"x($m-1) . "1"; # n =                     0.01
+      } else {
+        return 0;                     # n =           0
+      }
+
+    } else {                          # m =           -1        -1
+      return 0;
     }
   }
-  $n;
+
+  return "$s$n";
 }
 
 sub subSF {
@@ -100,7 +127,9 @@ sub subSF {
 
 sub multSF {
   my($n1,$n2)=@_;
-  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
+  $n1 = Simplify($n1);
+  $n2 = Simplify($n2);
+  return ()  if (! defined $n1  ||  ! defined $n2);
   return 0   if ($n1==0  or  $n2==0);
   my($m1)=CountSigFigs($n1);
   my($m2)=CountSigFigs($n2);
@@ -111,7 +140,9 @@ sub multSF {
 
 sub divSF {
   my($n1,$n2)=@_;
-  return ()  if (! IsReal($n1)  or  ! IsReal($n2));
+  $n1 = Simplify($n1);
+  $n2 = Simplify($n2);
+  return ()  if (! defined $n1  ||  ! defined $n2);
   return 0   if ($n1==0);
   return ()  if ($n2==0);
   my($m1)=CountSigFigs($n1);
@@ -124,7 +155,8 @@ sub divSF {
 sub FormatSigFigs {
   my($N,$n)=@_;
   my($ret);
-  return ""  if (! IsReal($N)  or  ! IsInt($n)  or  $n<1);
+  $N = Simplify($N);
+  return ""  if (! defined($N)  or  $n !~ /^\d+$/  or  $n<1);
   my($l,$l1,$l2,$m,$s)=();
   $N=~ s/\s+//g;               # Remove all spaces
   $N=~ s/^([+-]?)//;           # Remove sign
@@ -226,7 +258,8 @@ sub FormatSigFigs {
 
 sub CountSigFigs {
   my($N)=@_;
-  return ()  if (! IsReal($N));
+  $N = Simplify($N);
+  return ()  if (! defined($N));
   return 0   if ($N==0);
 
   my($tmp)=();
@@ -244,42 +277,36 @@ sub CountSigFigs {
 
 ########################################################################
 # NOT FOR EXPORT
+#
+# These are exported above only for debug purposes.  They are not
+# for general use.  They are not guaranteed to remain backward
+# compatible (or even to exist at all) in future versions.
 ########################################################################
 
-sub IsReal {
-  my($N,$low,$high)=@_;
-  return 0 if ($N eq "");
-
-  my($sign)='^\s* [-+]? \s*';
-  my($int) ='\d+';
-  my($dec) ='(\.\d*)? \s* $ ';
-  my($Dec) =' \.\d*   \s* $ ';
-
-  if ($N =~ /$sign $int $dec/x or
-      $N =~ /$sign $Dec/x) {
-    if (defined $low  and  defined $high) {
-      $N=~ s/\s+//;
-      return 1  if ($N>=$low  and  $N<=$high);
-      return 0;
-    }
-    return 1;
+# This returns the power of the least sigificant digit.
+sub LSP {
+  my($n) = @_;
+  $n =~ s/\-//;
+  if ($n =~ /(.*)\.(.+)/) {
+    return -length($2);
+  } elsif ($n =~ /\.$/) {
+    return 0;
+  } else {
+    return length($n) - CountSigFigs($n);
   }
-  return 0;
 }
 
-sub IsInt {
-  my($N,$low,$high)=@_;
-  return 0 if ($N eq "");
-  my($sign)='^\s* [-+]? \s*';
-  my($int) ='\d+ \s* $ ';
-  if ($N =~ /$sign $int/x) {
-    if (defined $low  and  defined $high) {
-      return 1  if ($N>=$low  and  $N<=$high);
-      return 0;
-    }
-    return 1;
-  }
-  return 0;
+# This prepares a number by converting it to it's simplest correct
+# form.
+sub Simplify {
+  my($n)    = @_;
+  return undef  if (! defined $n);
+  return undef  if ($n !~ /^\s*([+-]?)\s*0*(\d+\.?\d*)\s*$/  and
+                    $n !~ /^\s*([+-]?)\s*0*(\.\d+)\s*$/);
+  $n="$1$2";
+  return 0  if ($n==0);
+  $n=~ s/\+//;
+  return $n;
 }
 
 1;

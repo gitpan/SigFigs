@@ -66,7 +66,9 @@ sub test_Func {
 
     $ans=&$funcref(@args,@extra);
     $bad=1;
-    $bad=0  if ($exp eq $ans  or  $exp eq "nil" && $ans eq "");
+    $bad=0  if (($exp eq "undef"  &&  ! defined $ans)  or
+                ($exp eq "nil"    &&  $ans eq "")  or
+                $exp eq $ans);
 
     if ($bad) {
       warn "########################\n";

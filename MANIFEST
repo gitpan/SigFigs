@@ -3,11 +3,13 @@ MANIFEST
 Makefile.PL
 README
 SigFigs.pm
-t/runtests
-t/format.t
-t/count.t
 t/add.t
-t/mult.t
+t/count.t
 t/div.t
+t/format.t
+t/lsp.t
+t/mult.t
+t/runtests
+t/simplify.t
 t/sub.t
 

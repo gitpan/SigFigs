@@ -1,6 +1,6 @@
 package Math::SigFigs;
 
-# Copyright (c) 1995-2005 Sullivan Beck. All rights reserved.
+# Copyright (c) 1995-2007 Sullivan Beck. All rights reserved.
 # This program is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 
@@ -36,6 +36,9 @@ package Math::SigFigs;
 #      - stopped using sprintf (which does not return the same results on
 #        all platforms.
 #      - replaced IsReal with Simplify.
+#
+# Version 1.05  2007-02-22
+#    Fixed a bug where subSF didn't work with some values.
 
 ########################################################################
 
@@ -53,7 +56,7 @@ use Carp;
 
 %EXPORT_TAGS = (all => \@EXPORT_STD, debug => \@EXPORT_DEBUG);
 
-$VERSION = 1.04;
+$VERSION = 1.05;
 
 use strict;
 
@@ -117,6 +120,7 @@ sub addSF {
 
 sub subSF {
   my($n1,$n2)=@_;
+  $n2 = Simplify($n2);
   if ($n2<0) {
     $n2 =~ s/\-//;
   } else {
@@ -424,19 +428,6 @@ will by necessity return the string "2400" which does NOT have 3
 significant figures.  This is not a bug.  It is simply a fundamental
 problem with working with significant figures when not using scientific
 notation.
-
-=item A bug in some printf library calls on the Mac
-
-One of the tests
-
-   FormatSigFigs(0.99,1)  =>  1.
-
-fails on at least some Mac OS versions.  It gives "0." instead of "1."
-and comes when the call:
-
-   printf("%.0f","0.99")
-
-returns 0 instead of 1.  I have not added a workaround for this.
 
 =back
 

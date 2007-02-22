@@ -2,9 +2,9 @@ Copyright (c) 1995-2005 Sullivan Beck. All rights reserved.
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 
-Notes for version 1.03
-  Fixed a bug in the subSF function (numbers ending in zero were
-  getting them truncated).
+Notes for version 1.04
+  Got rid of reference to sprintf, so now SigFigs should work
+  on all architectures.
 
 
 In many scientific applications, it is often useful to be able to format
